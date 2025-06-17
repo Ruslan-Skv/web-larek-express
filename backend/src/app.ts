@@ -6,13 +6,16 @@ import productRouter from './routes/products';
 import path from 'path';
 import orderRouter from './routes/orders';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler';
+import { errorLogger, requestLogger } from './middlewares/logger';
 
 const { PORT = 3000 } = process.env;
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const publicPath = path.join(__dirname, '../public');
+app.use(requestLogger);
+
+const publicPath = path.join(__dirname, './public');
 app.use('/images', express.static(path.join(publicPath, 'images')));
 
 
@@ -21,11 +24,11 @@ mongoose.connect('mongodb://127.0.0.1:27017/weblarek');
 app.use('/product', productRouter);
 app.use('/order', orderRouter);
 
+app.use(errorLogger);
+
 app.use(notFoundHandler);
-// Централизованная обработка ошибок
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-
-    console.log(`App listening on port ${PORT}`)
+  console.log(`App listening on port ${PORT}`)
 })
