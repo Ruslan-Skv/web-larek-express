@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import productRouter from './routes/products';
 import path from 'path';
 import orderRouter from './routes/orders';
+import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 
 const { PORT = 3000 } = process.env;
 const app = express();
@@ -20,6 +21,9 @@ mongoose.connect('mongodb://127.0.0.1:27017/weblarek');
 app.use('/product', productRouter);
 app.use('/order', orderRouter);
 
+app.use(notFoundHandler);
+// Централизованная обработка ошибок
+app.use(errorHandler);
 
 app.listen(PORT, () => {
 
