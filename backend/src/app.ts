@@ -7,6 +7,7 @@ import path from 'path';
 import orderRouter from './routes/orders';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 import { errorLogger, requestLogger } from './middlewares/logger';
+import userRouter from './routes/user';
 
 const { PORT = 3000 } = process.env;
 const app = express();
@@ -23,6 +24,7 @@ mongoose.connect('mongodb://127.0.0.1:27017/weblarek');
 
 app.use('/product', productRouter);
 app.use('/order', orderRouter);
+app.use('/auth', userRouter);
 
 app.use(errorLogger);
 

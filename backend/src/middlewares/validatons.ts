@@ -23,3 +23,11 @@ export const validateOrderCreation = celebrate({
     items: Joi.array().items(Joi.string()).min(1).required(),
   }),
 });
+
+export const validateUserData = celebrate({
+  body: Joi.object({
+    name: Joi.string().min(2).max(30),
+    email: Joi.string().required().email(),
+    password: Joi.string().required().min(6)
+  })
+});
