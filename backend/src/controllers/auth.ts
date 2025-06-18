@@ -36,14 +36,10 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       throw new ConflictError('Пользователь с таким email уже существует');
     }
 
-    // Хеширование пароля
-    const hash = await bcrypt.hash(password, 10);
-
-    // Создание пользователя
     const user = await User.create({
       name,
       email,
-      password: hash,
+      password: await bcrypt.hash(password, 10),
       tokens: []
     });
 
@@ -101,7 +97,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   try {
     const { email, password } = req.body;
 
-    
+
     const user: IUser = await User.findUserByCredentials(email, password);
 
     // Генерация токенов
@@ -210,18 +206,22 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-// Обновление access токена
+// Обновление токенов
 export const refreshAccessToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { refreshToken } = req.cookies;
+    // Проверяем наличие куки
+    const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       throw new UnauthorizedError('Требуется refresh токен');
     }
 
-    // Верификация токена
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key') as TokenPayload;
+    // Валидация токена
+    const payload = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key'
+    ) as TokenPayload;
 
-    // Проверка наличия токена в базе
+    // Поиск пользователя с этим токеном
     const user = await User.findOne({
       _id: payload._id,
       'tokens.token': refreshToken
@@ -250,19 +250,15 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       $push: { tokens: { token: newRefreshToken } }
     });
 
-    // Настройки куки
-    const cookieOptions: CookieOptions = {
+    // Установка новой куки
+    res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: ms('7d'),
       path: '/',
-    };
+    });
 
-    // Установка новой куки
-    res.cookie('refreshToken', newRefreshToken, cookieOptions);
-
-    // Формирование ответа
     res.status(200).json({
       user: {
         email: user.email,
@@ -276,43 +272,3 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
-
-//Получаем текущего пользователя
-// export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
-//   try {
-//     // req.user должен быть установлен в middleware аутентификации
-//     const user = await User.findById(req.user._id).select('-password -tokens');
-//     if (!user) {
-//       throw new NotFoundError('Пользователь не найден');
-//     }
-//     res.send(user);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-// export const updateUserProfile = async (req: Request, res: Response, next: NextFunction) => {
-//   try {
-//     const { name, email } = req.body;
-
-//     const user = await User.findByIdAndUpdate(
-//       req.user._id,
-//       { name, email },
-//       { new: true, runValidators: true }
-//     ).select('-password -tokens');
-
-//     if (!user) {
-//       throw new NotFoundError('Пользователь не найден');
-//     }
-
-//     res.send(user);
-//   } catch (error) {
-//     if (error instanceof Error && error.name === 'ValidationError') {
-//       next(new BadRequestError('Некорректные данные для обновления'));
-//     } else if (error.code === 11000) {
-//       next(new ConflictError('Пользователь с таким email уже существует'));
-//     } else {
-//       next(error);
-//     }
-//   }
-// };

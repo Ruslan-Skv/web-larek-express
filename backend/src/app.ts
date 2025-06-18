@@ -1,4 +1,5 @@
 import express from 'express';
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 // import { MongoClient } from 'mongodb';
 import mongoose from 'mongoose';
@@ -9,9 +10,15 @@ import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 import { errorLogger, requestLogger } from './middlewares/logger';
 import userRouter from './routes/user';
 
+
 const { PORT = 3000 } = process.env;
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(express.json());
 
 app.use(requestLogger);
