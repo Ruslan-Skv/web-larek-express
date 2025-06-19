@@ -1,22 +1,23 @@
 import express from 'express';
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
-// import { MongoClient } from 'mongodb';
+import cors from 'cors';
 import mongoose from 'mongoose';
-import productRouter from './routes/products';
 import path from 'path';
+import productRouter from './routes/products';
 import orderRouter from './routes/orders';
-import { errorHandler, notFoundHandler } from './middlewares/error-handler';
+import { errorHandler } from './middlewares/error-handler';
 import { errorLogger, requestLogger } from './middlewares/logger';
 import userRouter from './routes/user';
+import 'dotenv/config';
+import { notFoundHandler } from './middlewares/not-found-handler';
 
+const cookieParser = require('cookie-parser');
 
 const { PORT = 3000 } = process.env;
 const app = express();
 
 app.use(cors({
   origin: 'http://localhost:5173',
-  credentials: true
+  credentials: true,
 }));
 app.use(cookieParser());
 app.use(express.json());
@@ -25,7 +26,6 @@ app.use(requestLogger);
 
 const publicPath = path.join(__dirname, './public');
 app.use('/images', express.static(path.join(publicPath, 'images')));
-
 
 mongoose.connect('mongodb://127.0.0.1:27017/weblarek');
 
@@ -39,5 +39,6 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`App listening on port ${PORT}`)
-})
+  // eslint-disable-next-line no-console
+  console.log(`App listening on port ${PORT}`);
+});

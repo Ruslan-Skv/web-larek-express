@@ -1,12 +1,11 @@
 import bcrypt from 'bcryptjs';
-import User, {IUser} from '../models/user';
 import { Request, Response, NextFunction } from 'express';
-import ConflictError from '../errors/conflict-error';
+import jwt from 'jsonwebtoken';
+import ms from 'ms';
+import User, { IUser } from '../models/user';
 import BadRequestError from '../errors/bad-request-error';
 import NotFoundError from '../errors/not-found-error';
 import UnauthorizedError from '../errors/unauthorized-error';
-import jwt from 'jsonwebtoken';
-import ms from 'ms';
 
 interface CookieOptions {
   httpOnly: boolean;
@@ -25,40 +24,29 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   try {
     const { name, email, password } = req.body;
 
-    // Валидация email и пароля
-    if (!email || !password) {
-      throw new BadRequestError('Email и пароль обязательны');
-    }
-
-    // Проверка на существующего пользователя
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      throw new ConflictError('Пользователь с таким email уже существует');
-    }
-
     const user = await User.create({
       name,
       email,
       password: await bcrypt.hash(password, 10),
-      tokens: []
+      tokens: [],
     });
 
     // Генерация токенов
     const accessToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
-      { expiresIn: '10m' }
+      { expiresIn: '10m' },
     );
 
     const refreshToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
 
     // Сохранение refresh токена в базе
     await User.findByIdAndUpdate(user._id, {
-      $push: { tokens: { token: refreshToken } }
+      $push: { tokens: { token: refreshToken } },
     });
 
     // Настройки куки
@@ -77,12 +65,11 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     res.status(201).json({
       user: {
         email: user.email,
-        name: user.name
+        name: user.name,
       },
       success: true,
-      accessToken
+      accessToken,
     });
-
   } catch (error) {
     if (error instanceof Error && error.name === 'ValidationError') {
       next(new BadRequestError('Некорректные данные пользователя'));
@@ -97,27 +84,25 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   try {
     const { email, password } = req.body;
 
-
     const user: IUser = await User.findUserByCredentials(email, password);
 
     // Генерация токенов
     const accessToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
-      { expiresIn: '10m' }
+      { expiresIn: '10m' },
     );
 
     const refreshToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
 
     // Сохранение refresh токена в базе
     await User.findByIdAndUpdate(user._id, {
-      $push: { tokens: { token: refreshToken } }
+      $push: { tokens: { token: refreshToken } },
     });
-
 
     const cookieOptions: CookieOptions = {
       httpOnly: true,
@@ -129,16 +114,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
-
     res.status(200).json({
       user: {
         email: user.email,
-        name: user.name
+        name: user.name,
       },
       success: true,
-      accessToken
+      accessToken,
     });
-
   } catch (error) {
     next(error);
   }
@@ -162,11 +145,10 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
     res.status(200).json({
       user: {
         email: user.email,
-        name: user.name
+        name: user.name,
       },
-      success: true
+      success: true,
     });
-
   } catch (error) {
     next(error);
   }
@@ -186,7 +168,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     const user = await User.findByIdAndUpdate(
       payload._id,
       { $pull: { tokens: { token: refreshToken } } },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
@@ -198,9 +180,8 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
 
     res.status(200).json({
       success: true,
-      message: 'Выход выполнен успешно'
+      message: 'Выход выполнен успешно',
     });
-
   } catch (error) {
     next(error);
   }
@@ -218,13 +199,13 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
     // Валидация токена
     const payload = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key'
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
     ) as TokenPayload;
 
     // Поиск пользователя с этим токеном
     const user = await User.findOne({
       _id: payload._id,
-      'tokens.token': refreshToken
+      'tokens.token': refreshToken,
     });
 
     if (!user) {
@@ -235,19 +216,19 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
     const newAccessToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
-      { expiresIn: '10m' }
+      { expiresIn: '10m' },
     );
 
     const newRefreshToken = jwt.sign(
       { _id: user._id },
       process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
 
     // Обновление токенов в базе
     await User.findByIdAndUpdate(user._id, {
       $pull: { tokens: { token: refreshToken } },
-      $push: { tokens: { token: newRefreshToken } }
+      $push: { tokens: { token: newRefreshToken } },
     });
 
     // Установка новой куки
@@ -262,12 +243,11 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
     res.status(200).json({
       user: {
         email: user.email,
-        name: user.name
+        name: user.name,
       },
       success: true,
-      accessToken: newAccessToken
+      accessToken: newAccessToken,
     });
-
   } catch (error) {
     next(error);
   }

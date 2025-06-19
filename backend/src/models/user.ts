@@ -1,6 +1,7 @@
-import mongoose from "mongoose";
-import validator from "validator";
+import mongoose, { Document } from 'mongoose';
+import validator from 'validator';
 import bcrypt from 'bcryptjs';
+import UnauthorizedError from '../errors/unauthorized-error';
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -22,7 +23,7 @@ const userSchema = new mongoose.Schema<IUser, IUserModel>({
     type: String,
     minlength: 2,
     maxlength: 30,
-    default: 'Ё-мое'
+    default: 'Ё-мое',
   },
   email: {
     type: String,
@@ -30,34 +31,34 @@ const userSchema = new mongoose.Schema<IUser, IUserModel>({
     unique: true,
     validate: {
       validator: (email: string) => validator.isEmail(email),
-      message: 'Некорректный email'
-    }
+      message: 'Некорректный email',
+    },
   },
   password: {
     type: String,
     required: true,
     minlength: 6,
-    select: false // Не возвращать пароль при запросах
+    select: false,
   },
   tokens: [{
     token: {
       type: String,
-      required: true
-    }
-  }]
+      required: true,
+    },
+  }],
 });
 
 userSchema.static('findUserByCredentials', function findUserByCredentials(email: string, password: string) {
   return this.findOne({ email }).select('+password')
     .then((user) => {
       if (!user) {
-        throw new Error('Неправильная почта или пароль');
+        throw new UnauthorizedError('Неправильная почта или пароль');
       }
 
       return bcrypt.compare(password, user.password)
         .then((matched) => {
           if (!matched) {
-            throw new Error('Неправильная почта или пароль');
+            throw new UnauthorizedError('Неправильная почта или пароль');
           }
           return user;
         });
@@ -65,4 +66,3 @@ userSchema.static('findUserByCredentials', function findUserByCredentials(email:
 });
 
 export default mongoose.model<IUser, IUserModel>('user', userSchema);
-
