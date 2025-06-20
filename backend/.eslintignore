@@ -1,2 +1,2 @@
 @types
-echo "dist/" >> .eslintignore
+# dist/

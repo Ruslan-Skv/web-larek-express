@@ -8,7 +8,7 @@ export const requestLogger = expressWinston.logger({
   ],
   format: winston.format.json(),
   meta: true,
-  msg: "HTTP {{req.method}} {{req.url}}",
+  msg: 'HTTP {{req.method}} {{req.url}}',
   expressFormat: true,
   colorize: false,
 });
@@ -20,5 +20,5 @@ export const errorLogger = expressWinston.errorLogger({
   ],
   format: winston.format.json(),
   meta: true,
-  msg: "{err.status} {{err.message}}",
+  msg: '{err.status} {{err.message}}',
 });

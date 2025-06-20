@@ -19,10 +19,16 @@
     "import/extensions": [".js", ".ts"]
   },
   "rules": {
+    "func-names": "off",
     "camelcase": "off",
     "no-underscore-dangle": "off",
     "no-console": "warn",
+    "max-len": ["error", { "code": 120 }],
+    "no-param-reassign": "off",
+    "no-void": "off",
     "no-shadow": "off",
+    "no-return-assign": "off",
+    "consistent-return": "off",
     "@typescript-eslint/no-shadow": "warn",
     "import/extensions": [
       "error",
@@ -32,12 +38,6 @@
         "ts": "never"
       }
     ],
-    // "no-underscore-dangle": [
-    //   "error",
-    //   {
-    //     "allow": ["_id"]
-    //   }
-    // ],
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [
       "error",

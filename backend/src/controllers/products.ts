@@ -1,34 +1,36 @@
-import { Request, Response, NextFunction } from "express";
-import Product from "../models/product";
-import BadRequestError from "../errors/bad-request-error";
-import ConflictError from "../errors/conflict-error";
+import { Request, Response, NextFunction } from 'express';
+import Product from '../models/product';
+import BadRequestError from '../errors/bad-request-error';
+import ConflictError from '../errors/conflict-error';
 
 export const getProducts = async (
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
-  ) => {
+  next: NextFunction,
+) => {
   try {
     const products = await Product.find({});
     res.json({
       total: products.length,
-      items: products
+      items: products,
     });
   } catch (err) {
-    next(err); // Передаем ошибку в централизованный обработчик
+    next(err);
   }
 };
 
 export const createProduct = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
-    const { description, image, title, category, price } = req.body;
+    const {
+      description, image, title, category, price,
+    } = req.body;
 
     // Валидация обязательных полей
-    if (!title || !description || !category || !price || !image ) {
+    if (!title || !description || !category || !price || !image) {
       throw new BadRequestError('Переданы некорректные данные в методы создания товара');
     }
 
@@ -42,15 +44,15 @@ export const createProduct = async (
       description,
       image: {
         filename: image.fileName,
-        originalName: image.originalName
+        originalName: image.originalName,
       },
       title,
       category,
-      price: price ?? null
+      price: price ?? null,
     });
 
     res.status(201).send({ data: product });
   } catch (err) {
-    next(err); // Передаем ошибку в централизованный обработчик
+    next(err);
   }
 };

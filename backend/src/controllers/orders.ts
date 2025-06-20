@@ -36,8 +36,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       0,
     );
 
-    // Генерация ID заказа
-    const orderId = faker.string.uuid();
+      const orderId = faker.string.uuid();
 
     res.status(201).json({
       id: orderId,
