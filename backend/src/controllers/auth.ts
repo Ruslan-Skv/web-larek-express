@@ -1,0 +1,254 @@
+import bcrypt from 'bcryptjs';
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import ms from 'ms';
+import User, { IUser } from '../models/user';
+import BadRequestError from '../errors/bad-request-error';
+import NotFoundError from '../errors/not-found-error';
+import UnauthorizedError from '../errors/unauthorized-error';
+
+interface CookieOptions {
+  httpOnly: boolean;
+  sameSite: 'lax' | 'strict' | 'none';
+  secure: boolean;
+  maxAge: number;
+  path: string;
+}
+
+interface TokenPayload {
+  _id: string;
+}
+
+// Регистрация пользователя
+export const register = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const user = await User.create({
+      name,
+      email,
+      password: await bcrypt.hash(password, 10),
+      tokens: [],
+    });
+
+    // Генерация токенов
+    const accessToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
+      { expiresIn: '10m' },
+    );
+
+    const refreshToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
+      { expiresIn: '7d' },
+    );
+
+    // Сохранение refresh токена в базе
+    await User.findByIdAndUpdate(user._id, {
+      $push: { tokens: { token: refreshToken } },
+    });
+
+    // Настройки куки
+    const cookieOptions: CookieOptions = {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      maxAge: ms('7d'),
+      path: '/',
+    };
+
+    // Установка куки
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    // Формирование ответа
+    res.status(201).json({
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+      success: true,
+      accessToken,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ValidationError') {
+      next(new BadRequestError('Некорректные данные пользователя'));
+    } else {
+      next(error);
+    }
+  }
+};
+
+// Аутентификация пользователя
+export const login = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, password } = req.body;
+
+    const user: IUser = await User.findUserByCredentials(email, password);
+
+    // Генерация токенов
+    const accessToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
+      { expiresIn: '10m' },
+    );
+
+    const refreshToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
+      { expiresIn: '7d' },
+    );
+
+    // Сохранение refresh токена в базе
+    await User.findByIdAndUpdate(user._id, {
+      $push: { tokens: { token: refreshToken } },
+    });
+
+    const cookieOptions: CookieOptions = {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      maxAge: ms('7d'),
+      path: '/',
+    };
+
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    res.status(200).json({
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+      success: true,
+      accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Получение текущего пользователя
+export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      throw new UnauthorizedError('Требуется авторизация');
+    }
+
+    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET || 'some-secret-access-key') as TokenPayload;
+    const user = await User.findById(payload._id).select('-password -tokens');
+
+    if (!user) {
+      throw new NotFoundError('Пользователь не найден');
+    }
+
+    res.status(200).json({
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+      success: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Выход из системы
+export const logout = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      throw new BadRequestError('Требуется refresh токен');
+    }
+
+    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key') as TokenPayload;
+
+    // Удаление токена из базы
+    const user = await User.findByIdAndUpdate(
+      payload._id,
+      { $pull: { tokens: { token: refreshToken } } },
+      { new: true },
+    );
+
+    if (!user) {
+      throw new NotFoundError('Пользователь не найден');
+    }
+
+    // Очистка куки
+    res.clearCookie('refreshToken');
+
+    res.status(200).json({
+      success: true,
+      message: 'Выход выполнен успешно',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Обновление токенов
+export const refreshAccessToken = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Проверяем наличие куки
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedError('Требуется refresh токен');
+    }
+
+    // Валидация токена
+    const payload = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
+    ) as TokenPayload;
+
+    // Поиск пользователя с этим токеном
+    const user = await User.findOne({
+      _id: payload._id,
+      'tokens.token': refreshToken,
+    });
+
+    if (!user) {
+      throw new UnauthorizedError('Недействительный refresh токен');
+    }
+
+    // Генерация новых токенов
+    const newAccessToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_ACCESS_SECRET || 'some-secret-access-key',
+      { expiresIn: '10m' },
+    );
+
+    const newRefreshToken = jwt.sign(
+      { _id: user._id },
+      process.env.JWT_REFRESH_SECRET || 'some-secret-refresh-key',
+      { expiresIn: '7d' },
+    );
+
+    // Обновление токенов в базе
+    await User.findByIdAndUpdate(user._id, {
+      $pull: { tokens: { token: refreshToken } },
+      $push: { tokens: { token: newRefreshToken } },
+    });
+
+    // Установка новой куки
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: ms('7d'),
+      path: '/',
+    });
+
+    res.status(200).json({
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+      success: true,
+      accessToken: newAccessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
